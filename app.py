@@ -29,9 +29,9 @@ def load_existing_exercises_by_subcat(sub_cat_name):
             pass
     return []
 
-# 특정 운동의 가장 최근 기록(무게, 반복, 휴식)을 가져오는 함수
+# 특정 운동의 가장 최근 기록(무게, 반복, 세트, 휴식)을 가져오는 함수
 def load_last_workout_values(exercise_name):
-    default_values = {"무게(kg)": 0.0, "반복횟수": 0, "휴식시간(초)": 0}
+    default_values = {"무게(kg)": 0.0, "반복횟수": 0, "세트": 1, "휴식시간(초)": 0}
     if not exercise_name or exercise_name == "직접 입력":
         return default_values
         
@@ -44,39 +44,21 @@ def load_last_workout_values(exercise_name):
                 return {
                     "무게(kg)": float(last_row.get('무게(kg)', 0.0)),
                     "반복횟수": int(last_row.get('반복횟수', 0)),
+                    "세트": int(last_row.get('세트', 1)),
                     "휴식시간(초)": int(last_row.get('휴식시간(초)', 0))
                 }
         except:
             pass
     return default_values
 
-# 오늘 자 해당 운동의 다음 세트 수를 계산하는 기본값 함수
-def get_next_set_number(date_str, exercise_name):
-    if not exercise_name or exercise_name == "직접 입력":
-        return 1
-        
-    if os.path.exists(CSV_FILE):
-        try:
-            df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
-            if '날짜' in df.columns and '운동명' in df.columns:
-                same_day_workout = df[(df['날짜'] == date_str) & (df['운동명'] == exercise_name.strip())]
-                if not same_day_workout.empty:
-                    if '세트' in same_day_workout.columns:
-                        return int(same_day_workout['세트'].max()) + 1
-                    else:
-                        return len(same_day_workout) + 1
-        except:
-            pass
-    return 1
-
 st.set_page_config(page_title="My Workout Note", layout="centered")
 st.title("🏋️‍♂️ 운동 기록 노트")
 
-# 1. 날짜 선택 (기본값: 오늘)
+# 1. 날짜 선택
 date = st.date_input("날짜를 선택하세요", datetime.today())
 date_str = date.strftime('%Y-%m-%d')
 
-# 💡 2 & 3. 대구분과 소구분을 한 줄(가로)로 배치
+# 2 & 3. 대구분과 소구분 (가로 정렬)
 cat_col1, cat_col2 = st.columns(2)
 with cat_col1:
     main_cat = st.selectbox("대구분 (부위)", list(CATEGORY_DATA.keys()))
@@ -85,55 +67,64 @@ with cat_col2:
 
 # 4. 운동명 입력/선택
 existing_exercises = load_existing_exercises_by_subcat(sub_cat)
-selected_exercise = st.selectbox("기존 운동 선택 (직접 입력하려면 아래 칸 이용)", ["직접 입력"] + existing_exercises)
+selected_exercise = st.selectbox("기존 운동 선택", ["직접 입력"] + existing_exercises)
 
-# 최종 저장할 운동명 변수
 exercise_name = ""
 if selected_exercise == "직접 입력":
     exercise_name = st.text_input("새로운 운동명 입력")
 else:
     exercise_name = selected_exercise
 
-# 선택된 운동의 직전 기록 불러오기 및 기본 세트 수 계산
+# 직전 기록 불러오기
 last_values = load_last_workout_values(exercise_name)
-auto_set_value = get_next_set_number(date_str, exercise_name)
 
-# 💡 5. 수치 입력 (무게 -> 반복 횟수 -> 세트 수 -> 휴식 순서로 4열 배치)
+# 5. 수치 입력 (4열 배치)
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     weight = st.number_input("무게 (kg)", min_value=0.0, step=0.5, format="%.1f", value=last_values["무게(kg)"])
 with col2:
     reps = st.number_input("반복 횟수", min_value=0, step=1, value=last_values["반복횟수"])
 with col3:
-    # 반복 횟수와 휴식 사이에 세트 수 컨트롤러 배치 (자동 계산된 값이 기본값으로 들어가며 수정도 가능)
-    set_num = st.number_input("세트 수", min_value=1, step=1, value=auto_set_value)
+    set_num = st.number_input("세트 수", min_value=1, step=1, value=last_values["세트"])
 with col4:
     rest = st.number_input("휴식 (초)", min_value=0, step=5, value=last_values["휴식시간(초)"])
 
 # 6. 비고 입력
 memo = st.text_input("비고 (메모)")
 
-# 7. 저장 버튼
-if st.button("운동 기록 저장하기", use_container_width=True):
-    if not exercise_name or exercise_name.strip() == "":
-        st.error("운동명을 입력하거나 선택해주세요!")
-    else:
-        new_data = pd.DataFrame([{
-            "날짜": date_str,
-            "대구분": main_cat,
-            "소구분": sub_cat,
-            "운동명": exercise_name.strip(),
-            "세트": set_num,            # 💡 컨트롤러에서 설정된 세트 수 저장
-            "무게(kg)": weight,
-            "반복횟수": reps,
-            "휴식시간(초)": rest,
-            "비고": memo
-        }])
-        
-        file_exists = os.path.exists(CSV_FILE)
-        new_data.to_csv(CSV_FILE, mode='a', header=not file_exists, index=False, encoding='utf-8-sig')
-        st.success(f"🎉 [{exercise_name}] {set_num}세트 기록이 저장되었습니다!")
-        st.rerun()
+# 💡 7. 저장 버튼 및 초기화 버튼 (나란히 배치)
+save_col, del_col = st.columns([0.8, 0.2]) # 저장 버튼을 크게, 삭제 버튼을 작게 배정
+
+with save_col:
+    if st.button("운동 기록 저장하기", use_container_width=True, type="primary"):
+        if not exercise_name or exercise_name.strip() == "":
+            st.error("운동명을 입력해주세요!")
+        else:
+            new_data = pd.DataFrame([{
+                "날짜": date_str, "대구분": main_cat, "소구분": sub_cat,
+                "운동명": exercise_name.strip(), "세트": set_num,
+                "무게(kg)": weight, "반복횟수": reps, "휴식시간(초)": rest, "비고": memo
+            }])
+            file_exists = os.path.exists(CSV_FILE)
+            new_data.to_csv(CSV_FILE, mode='a', header=not file_exists, index=False, encoding='utf-8-sig')
+            st.success(f"🎉 {exercise_name} 저장 완료!")
+            st.rerun()
+
+with del_col:
+    # popover를 사용하여 버튼 클릭 시에만 입력창이 나타나도록 구현 (조그마한 느낌)
+    with st.popover("❌ 초기화", use_container_width=True):
+        st.write("모든 기록을 삭제합니다.")
+        pw = st.text_input("비밀번호 입력", type="password")
+        if st.button("확인", use_container_width=True):
+            if pw == "1234":
+                if os.path.exists(CSV_FILE):
+                    os.remove(CSV_FILE)
+                    st.success("삭제되었습니다.")
+                    st.rerun()
+                else:
+                    st.info("데이터가 없습니다.")
+            else:
+                st.error("비밀번호 불일치")
 
 # 저장된 데이터 미리보기
 if os.path.exists(CSV_FILE):
