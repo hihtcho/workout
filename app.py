@@ -156,9 +156,13 @@ with del_col:
             else:
                 st.error("비밀번호 불일치")
 
+# 기존 코드 맨 아래쪽 (156번째 줄 근처) 수정
+
 # 저장된 데이터 미리보기
 if os.path.exists(CSV_FILE):
     st.write("---")
-    st.subheader("📝 최근 운동 기록")
+    st.subheader("📝 최근 운동 기록 (최신순)")
     df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
-    st.dataframe(df.tail(5), use_container_width=True)
+    
+    # 💡 df.tail(5)[::-1] 을 사용하여 가장 최근 5개 기록을 가져온 뒤, 최신순으로 뒤집습니다.
+    st.dataframe(df.tail(5)[::-1], use_container_width=True)
