@@ -85,7 +85,7 @@ with col1:
 with col2:
     reps = st.number_input("반복 횟수", min_value=0, step=1, value=last_values["반복횟수"])
 with col3:
-    set_num = st.number_input("세트 수", min_value=1, step=1, value=last_values["세體"]) if "세體" in last_values else st.number_input("세트 수", min_value=1, step=1, value=last_values["세트"])
+    set_num = st.number_input("세트 수", min_value=1, step=1, value=last_values["세트"])
 with col4:
     rest = st.number_input("휴식 (초)", min_value=0, step=5, value=last_values["휴식시간(초)"])
 
@@ -123,4 +123,19 @@ with del_col:
                             df_dropped = df.drop(df.index[-1])
                             df_dropped.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
                             st.success("방금 입력한 기록이 취소되었습니다.")
-                            st.
+                            st.rerun()
+                        else:
+                            st.info("삭제할 기록이 없습니다.")
+                    except Exception as e:
+                        st.error(f"파일을 수정하는 중 오류 발생: {e}")
+                else:
+                    st.info("데이터 파일이 없습니다.")
+            else:
+                st.error("비밀번호 불일치")
+
+# 저장된 데이터 미리보기
+if os.path.exists(CSV_FILE):
+    st.write("---")
+    st.subheader("📝 최근 운동 기록")
+    df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
+    st.dataframe(df.tail(5), use_container_width=True)
