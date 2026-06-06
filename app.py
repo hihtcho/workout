@@ -50,7 +50,7 @@ def load_last_workout_values(exercise_name):
             pass
     return default_values
 
-# 💡 오늘 자 해당 운동의 다음 세트 수를 계산하는 함수
+# 오늘 자 해당 운동의 다음 세트 수를 계산하는 기본값 함수
 def get_next_set_number(date_str, exercise_name):
     if not exercise_name or exercise_name == "직접 입력":
         return 1
@@ -59,10 +59,8 @@ def get_next_set_number(date_str, exercise_name):
         try:
             df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
             if '날짜' in df.columns and '운동명' in df.columns:
-                # 같은 날짜, 같은 운동명으로 기록된 데이터 필터링
                 same_day_workout = df[(df['날짜'] == date_str) & (df['운동명'] == exercise_name.strip())]
                 if not same_day_workout.empty:
-                    # '세트' 컬럼이 있으면 최대값 + 1, 없으면 행 개수 + 1
                     if '세트' in same_day_workout.columns:
                         return int(same_day_workout['세트'].max()) + 1
                     else:
@@ -78,11 +76,12 @@ st.title("🏋️‍♂️ 운동 기록 노트")
 date = st.date_input("날짜를 선택하세요", datetime.today())
 date_str = date.strftime('%Y-%m-%d')
 
-# 2. 대구분 선택
-main_cat = st.selectbox("대구분 (부위)", list(CATEGORY_DATA.keys()))
-
-# 3. 소구분 선택
-sub_cat = st.selectbox("소구분 (근육)", CATEGORY_DATA[main_cat])
+# 💡 2 & 3. 대구분과 소구분을 한 줄(가로)로 배치
+cat_col1, cat_col2 = st.columns(2)
+with cat_col1:
+    main_cat = st.selectbox("대구분 (부위)", list(CATEGORY_DATA.keys()))
+with cat_col2:
+    sub_cat = st.selectbox("소구분 (근육)", CATEGORY_DATA[main_cat])
 
 # 4. 운동명 입력/선택
 existing_exercises = load_existing_exercises_by_subcat(sub_cat)
@@ -95,20 +94,20 @@ if selected_exercise == "직접 입력":
 else:
     exercise_name = selected_exercise
 
-# 선택된 운동의 직전 기록 불러오기
+# 선택된 운동의 직전 기록 불러오기 및 기본 세트 수 계산
 last_values = load_last_workout_values(exercise_name)
+auto_set_value = get_next_set_number(date_str, exercise_name)
 
-# 💡 현재 기록할 세트 수 계산
-current_set = get_next_set_number(date_str, exercise_name)
-st.info(f"정리: 현재 입력하시는 기록은 **[{exercise_name}]**의 **{current_set}세트**째입니다.")
-
-# 5. 수치 입력 (모바일용 가로 배치)
-col1, col2, col3 = st.columns(3)
+# 💡 5. 수치 입력 (무게 -> 반복 횟수 -> 세트 수 -> 휴식 순서로 4열 배치)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     weight = st.number_input("무게 (kg)", min_value=0.0, step=0.5, format="%.1f", value=last_values["무게(kg)"])
 with col2:
     reps = st.number_input("반복 횟수", min_value=0, step=1, value=last_values["반복횟수"])
 with col3:
+    # 반복 횟수와 휴식 사이에 세트 수 컨트롤러 배치 (자동 계산된 값이 기본값으로 들어가며 수정도 가능)
+    set_num = st.number_input("세트 수", min_value=1, step=1, value=auto_set_value)
+with col4:
     rest = st.number_input("휴식 (초)", min_value=0, step=5, value=last_values["휴식시간(초)"])
 
 # 6. 비고 입력
@@ -124,7 +123,7 @@ if st.button("운동 기록 저장하기", use_container_width=True):
             "대구분": main_cat,
             "소구분": sub_cat,
             "운동명": exercise_name.strip(),
-            "세트": current_set,        # 💡 세트 수 컬럼 추가
+            "세트": set_num,            # 💡 컨트롤러에서 설정된 세트 수 저장
             "무게(kg)": weight,
             "반복횟수": reps,
             "휴식시간(초)": rest,
@@ -133,7 +132,7 @@ if st.button("운동 기록 저장하기", use_container_width=True):
         
         file_exists = os.path.exists(CSV_FILE)
         new_data.to_csv(CSV_FILE, mode='a', header=not file_exists, index=False, encoding='utf-8-sig')
-        st.success(f"🎉 [{exercise_name}] {current_set}세트 기록이 저장되었습니다!")
+        st.success(f"🎉 [{exercise_name}] {set_num}세트 기록이 저장되었습니다!")
         st.rerun()
 
 # 저장된 데이터 미리보기
