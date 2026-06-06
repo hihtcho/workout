@@ -28,6 +28,29 @@ def load_existing_exercises():
             pass
     return []
 
+# 특정 운동의 가장 최근 기록(무게, 반복, 휴식)을 가져오는 함수
+def load_last_workout_values(exercise_name):
+    default_values = {"무게(kg)": 0.0, "반복횟수": 0, "휴식시간(초)": 0}
+    if not exercise_name or exercise_name == "직접 입력":
+        return default_values
+        
+    if os.path.exists(CSV_FILE):
+        try:
+            df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
+            # 해당 운동명과 일치하는 데이터만 필터링
+            df_filtered = df[df['운동명'] == exercise_name.strip()]
+            if not df_filtered.empty:
+                # 가장 마지막 행(최근 기록) 가져오기
+                last_row = df_filtered.iloc[-1]
+                return {
+                    "무게(kg)": float(last_row.get('무게(kg)', 0.0)),
+                    "반복횟수": int(last_row.get('반복횟수', 0)),
+                    "휴식시간(초)": int(last_row.get('휴식시간(초)', 0))
+                }
+        except:
+            pass
+    return default_values
+
 st.set_page_config(page_title="My Workout Note", layout="centered")
 st.title("🏋️‍♂️ 운동 기록 노트")
 
@@ -42,19 +65,27 @@ sub_cat = st.selectbox("소구분 (근육)", CATEGORY_DATA[main_cat])
 
 # 4. 운동명 입력/선택
 existing_exercises = load_existing_exercises()
-exercise_name = st.selectbox("기존 운동 선택 (직접 입력하려면 아래 칸 이용)", ["직접 입력"] + existing_exercises)
+selected_exercise = st.selectbox("기존 운동 선택 (직접 입력하려면 아래 칸 이용)", ["직접 입력"] + existing_exercises)
 
-if exercise_name == "직접 입력":
+# 최종 저장할 운동명 변수
+exercise_name = ""
+
+if selected_exercise == "직접 입력":
     exercise_name = st.text_input("새로운 운동명 입력")
+else:
+    exercise_name = selected_exercise
 
-# 5. 수치 입력 (모바일용 가로 배치)
+# 💡 선택된 운동의 직전 기록 불러오기
+last_values = load_last_workout_values(exercise_name)
+
+# 5. 수치 입력 (모바일용 가로 배치) - value 항목에 직전 기록 연동
 col1, col2, col3 = st.columns(3)
 with col1:
-    weight = st.number_input("무게 (kg)", min_value=0.0, step=0.5, format="%.1f")
+    weight = st.number_input("무게 (kg)", min_value=0.0, step=0.5, format="%.1f", value=last_values["무게(kg)"])
 with col2:
-    reps = st.number_input("반복 횟수", min_value=0, step=1)
+    reps = st.number_input("반복 횟수", min_value=0, step=1, value=last_values["반복횟수"])
 with col3:
-    rest = st.number_input("휴식 (초)", min_value=0, step=5)
+    rest = st.number_input("휴식 (초)", min_value=0, step=5, value=last_values["휴식시간(초)"])
 
 # 6. 비고 입력
 memo = st.text_input("비고 (메모)")
