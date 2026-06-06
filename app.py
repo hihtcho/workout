@@ -29,9 +29,9 @@ def load_existing_exercises_by_subcat(sub_cat_name):
             pass
     return []
 
-# 특정 운동의 가장 최근 기록(무게, 반복, 세트, 휴식)을 가져오는 함수
+# 특정 운동의 가장 최근 기록(무게, 반복, 휴식)을 가져오는 함수
 def load_last_workout_values(exercise_name):
-    default_values = {"무게(kg)": 0.0, "반복횟수": 0, "세트": 1, "휴식시간(초)": 0}
+    default_values = {"무게(kg)": 0.0, "반복횟수": 0, "휴식시간(초)": 0}
     if not exercise_name or exercise_name == "직접 입력":
         return default_values
         
@@ -44,12 +44,31 @@ def load_last_workout_values(exercise_name):
                 return {
                     "무게(kg)": float(last_row.get('무게(kg)', 0.0)),
                     "반복횟수": int(last_row.get('반복횟수', 0)),
-                    "세트": int(last_row.get('세트', 1)),
                     "휴식시간(초)": int(last_row.get('휴식시간(초)', 0))
                 }
         except:
             pass
     return default_values
+
+# 💡 오늘 자 해당 운동의 다음 세트 수를 자동으로 계산하는 함수
+def get_next_set_number(date_str, exercise_name):
+    if not exercise_name or exercise_name == "직접 입력":
+        return 1
+        
+    if os.path.exists(CSV_FILE):
+        try:
+            df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
+            if '날짜' in df.columns and '운동명' in df.columns:
+                # 오늘 날짜에 저장된 동일 운동 필터링
+                same_day_workout = df[(df['날짜'] == date_str) & (df['운동명'] == exercise_name.strip())]
+                if not same_day_workout.empty:
+                    if '세트' in same_day_workout.columns:
+                        return int(same_day_workout['세트'].max()) + 1
+                    else:
+                        return len(same_day_workout) + 1
+        except:
+            pass
+    return 1
 
 st.set_page_config(page_title="My Workout Note", layout="centered")
 st.title("🏋️‍♂️ 운동 기록 노트")
@@ -75,8 +94,11 @@ if selected_exercise == "직접 입력":
 else:
     exercise_name = selected_exercise
 
-# 직전 기록 불러오기
+# 직전 기록(무게, 반복, 휴식) 불러오기
 last_values = load_last_workout_values(exercise_name)
+
+# 💡 오늘 기록할 세트 수 계산 (오늘 한 적 없으면 1, 있으면 마지막 세트 + 1)
+next_set_value = get_next_set_number(date_str, exercise_name)
 
 # 5. 수치 입력 (4열 배치: 무게 -> 반복 -> 세트 -> 휴식)
 col1, col2, col3, col4 = st.columns(4)
@@ -85,7 +107,8 @@ with col1:
 with col2:
     reps = st.number_input("반복 횟수", min_value=0, step=1, value=last_values["반복횟수"])
 with col3:
-    set_num = st.number_input("세트 수", min_value=1, step=1, value=last_values["세트"])
+    # 💡 자동 계산된 다음 세트 수가 세팅되며, 수동 조절도 가능합니다.
+    set_num = st.number_input("세트 수", min_value=1, step=1, value=next_set_value)
 with col4:
     rest = st.number_input("휴식 (초)", min_value=0, step=5, value=last_values["휴식시간(초)"])
 
