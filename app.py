@@ -17,14 +17,12 @@ CATEGORY_DATA = {
     "팔": ["이두근", "삼두근", "전완근"]
 }
 
-# 💡 현재 선택된 소구분에 맞는 기존 운동명만 로드하는 함수
+# 현재 선택된 소구분에 맞는 기존 운동명만 로드하는 함수
 def load_existing_exercises_by_subcat(sub_cat_name):
     if os.path.exists(CSV_FILE):
         try:
             df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
-            # '소구분'과 '운동명' 컬럼이 모두 존재할 때
             if '소구분' in df.columns and '운동명' in df.columns:
-                # 선택된 소구분과 일치하는 데이터만 필터링
                 df_filtered = df[df['소구분'] == sub_cat_name.strip()]
                 return df_filtered['운동명'].dropna().unique().tolist()
         except:
@@ -52,11 +50,33 @@ def load_last_workout_values(exercise_name):
             pass
     return default_values
 
+# 💡 오늘 자 해당 운동의 다음 세트 수를 계산하는 함수
+def get_next_set_number(date_str, exercise_name):
+    if not exercise_name or exercise_name == "직접 입력":
+        return 1
+        
+    if os.path.exists(CSV_FILE):
+        try:
+            df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
+            if '날짜' in df.columns and '운동명' in df.columns:
+                # 같은 날짜, 같은 운동명으로 기록된 데이터 필터링
+                same_day_workout = df[(df['날짜'] == date_str) & (df['운동명'] == exercise_name.strip())]
+                if not same_day_workout.empty:
+                    # '세트' 컬럼이 있으면 최대값 + 1, 없으면 행 개수 + 1
+                    if '세트' in same_day_workout.columns:
+                        return int(same_day_workout['세트'].max()) + 1
+                    else:
+                        return len(same_day_workout) + 1
+        except:
+            pass
+    return 1
+
 st.set_page_config(page_title="My Workout Note", layout="centered")
 st.title("🏋️‍♂️ 운동 기록 노트")
 
 # 1. 날짜 선택 (기본값: 오늘)
 date = st.date_input("날짜를 선택하세요", datetime.today())
+date_str = date.strftime('%Y-%m-%d')
 
 # 2. 대구분 선택
 main_cat = st.selectbox("대구분 (부위)", list(CATEGORY_DATA.keys()))
@@ -64,13 +84,12 @@ main_cat = st.selectbox("대구분 (부위)", list(CATEGORY_DATA.keys()))
 # 3. 소구분 선택
 sub_cat = st.selectbox("소구분 (근육)", CATEGORY_DATA[main_cat])
 
-# 4. 운동명 입력/선택 (💡 소구분 기반 필터링 적용)
+# 4. 운동명 입력/선택
 existing_exercises = load_existing_exercises_by_subcat(sub_cat)
 selected_exercise = st.selectbox("기존 운동 선택 (직접 입력하려면 아래 칸 이용)", ["직접 입력"] + existing_exercises)
 
 # 최종 저장할 운동명 변수
 exercise_name = ""
-
 if selected_exercise == "직접 입력":
     exercise_name = st.text_input("새로운 운동명 입력")
 else:
@@ -78,6 +97,10 @@ else:
 
 # 선택된 운동의 직전 기록 불러오기
 last_values = load_last_workout_values(exercise_name)
+
+# 💡 현재 기록할 세트 수 계산
+current_set = get_next_set_number(date_str, exercise_name)
+st.info(f"정리: 현재 입력하시는 기록은 **[{exercise_name}]**의 **{current_set}세트**째입니다.")
 
 # 5. 수치 입력 (모바일용 가로 배치)
 col1, col2, col3 = st.columns(3)
@@ -97,10 +120,11 @@ if st.button("운동 기록 저장하기", use_container_width=True):
         st.error("운동명을 입력하거나 선택해주세요!")
     else:
         new_data = pd.DataFrame([{
-            "날짜": date.strftime('%Y-%m-%d'),
+            "날짜": date_str,
             "대구분": main_cat,
             "소구분": sub_cat,
             "운동명": exercise_name.strip(),
+            "세트": current_set,        # 💡 세트 수 컬럼 추가
             "무게(kg)": weight,
             "반복횟수": reps,
             "휴식시간(초)": rest,
@@ -109,7 +133,7 @@ if st.button("운동 기록 저장하기", use_container_width=True):
         
         file_exists = os.path.exists(CSV_FILE)
         new_data.to_csv(CSV_FILE, mode='a', header=not file_exists, index=False, encoding='utf-8-sig')
-        st.success(f"🎉 [{exercise_name}] 기록이 저장되었습니다!")
+        st.success(f"🎉 [{exercise_name}] {current_set}세트 기록이 저장되었습니다!")
         st.rerun()
 
 # 저장된 데이터 미리보기
